@@ -26,7 +26,7 @@ const MonitorSchema = new Schema<IMonitor>(
         },
         user: {
             type: Schema.Types.ObjectId,
-            ref: "User",          // links to your User model
+            ref: "User",          // links to your User mode
             required: true,
         },
         status: {

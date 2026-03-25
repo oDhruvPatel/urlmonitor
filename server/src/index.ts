@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import session from 'express-session';
 import mongoose from 'mongoose';
 import passport, { configurePassport } from './config/passport';
-import Url from './models/Url';
+import Monitor from './models/Url';
 
 dotenv.config();
 configurePassport();
@@ -90,34 +90,57 @@ app.get('/auth/logout', (req: Request, res: Response) => {
 });
 
 app.post('/api/submitURL', async (req: Request, res: Response) => {
-  const { url, name, intervalMin } = req.body;
-
   if (!req.isAuthenticated()) {
     return res.status(401).json({ error: "Please login first" });
   }
 
-  // 1. check URL exists in body
+  const { url, name, intervalMinutes } = req.body;
+
   if (!url) {
     return res.status(400).json({ error: "URL is required" });
   }
 
-  // 2. validate URL format
   try {
     new URL(url);
   } catch {
     return res.status(400).json({ error: "Invalid URL format. Example: https://google.com" });
   }
 
+  const VALID_INTERVALS = [1, 5, 10, 30, 60];
+  if (intervalMinutes && !VALID_INTERVALS.includes(Number(intervalMinutes))) {
+    return res.status(400).json({ error: `intervalMinutes must be one of: ${VALID_INTERVALS.join(", ")}` });
+  }
+
   try {
     const user = req.user as any;
-    const exist = await Url.findOne({ url: url, user: user._id });
-    if (exist) {
-      return res.status(400).json({ error: "You are already monitoring this URL" });
+    const exists = await Monitor.findOne({ url, user: user._id });
+    if (exists) {
+      return res.status(409).json({ error: "You are already monitoring this URL" });
     }
 
+    const monitor = new Monitor({ url, name: name || url, intervalMinutes, user: user._id });
+    await monitor.save();
+    return res.status(201).json({ message: "URL added successfully", url: monitor });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
   }
-  catch (error) { res.status(400).json({ error: "Failed to validate URL" }); }
+});
 
+// ── Get all monitors for logged-in user ──
+app.get('/api/monitors', async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Please login first" });
+  }
+
+  try {
+    const user = req.user as any;
+    const monitors = await Monitor.find({ user: user._id }).sort({ createdAt: -1 });
+    return res.json(monitors);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ── Health Check ──
