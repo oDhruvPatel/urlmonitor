@@ -5,6 +5,8 @@ import session from 'express-session';
 import mongoose from 'mongoose';
 import passport, { configurePassport } from './config/passport';
 import Monitor from './models/Url';
+import { redisCache } from './config/redis';
+
 
 dotenv.config();
 configurePassport();
@@ -141,6 +143,11 @@ app.get('/api/monitors', async (req: Request, res: Response) => {
     console.error(error);
     return res.status(500).json({ error: "Internal server error" });
   }
+});
+
+
+app.get('/', async (req: Request, res: Response) => {
+
 });
 
 // ── Health Check ──
