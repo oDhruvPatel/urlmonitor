@@ -8,7 +8,16 @@ const connectionOptions = {
     maxRetriesPerRequest: null,
 };
 
+
 export const redisCache = new Redis(connectionOptions);
+
+redisCache.on('ready', () => {
+    console.log('✅ Connected to Redis');
+});
+
+redisCache.on('error', (err) => {
+    console.error('Redis connection error:', err);
+});
 
 export const redisQueue = connectionOptions;
 

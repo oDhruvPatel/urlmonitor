@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import passport, { configurePassport } from './config/passport';
 import Monitor from './models/Url';
 import { redisCache } from './config/redis';
+import './config/redis'; // side-effect import — ensures Redis connects on startup
 
 
 dotenv.config();
@@ -137,8 +138,21 @@ app.get('/api/monitors', async (req: Request, res: Response) => {
 
   try {
     const user = req.user as any;
-    const monitors = await Monitor.find({ user: user._id }).sort({ createdAt: -1 });
-    return res.json(monitors);
+    const monitors = await Monitor.find({ user: user._id }).sort({ createdAt: -1 }).lean();
+
+    const monitorWithStatus = await Promise.all(
+      monitors.map(async (monitor) => {
+        const cachedStatus = await redisCache.get(`status:${monitor._id.toString()}`);
+        if (cachedStatus) {
+          // Overwrite the existing status property directly, bypassing TS type check
+          (monitor as any).status = cachedStatus;
+        }
+        return monitor;
+      })
+    );
+
+    return res.json(monitorWithStatus);
+
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Internal server error" });
@@ -146,9 +160,6 @@ app.get('/api/monitors', async (req: Request, res: Response) => {
 });
 
 
-app.get('/', async (req: Request, res: Response) => {
-
-});
 
 // ── Health Check ──
 app.get('/', (req: Request, res: Response) => {
